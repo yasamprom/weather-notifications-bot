@@ -24,6 +24,7 @@ type TimerChooseState struct {
 	State
 }
 
+// todo: saving to users list
 var (
 	bot, err              = tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_TOKEN"))
 	cities, timers, users = create_db()
@@ -31,8 +32,8 @@ var (
 	times                 = make(map[int64]chrono.ScheduledTask)
 )
 
-func extract_city(chat_id int64) (string, error) {
-	filter := bson.D{{"_id", chat_id}}
+func extractCity(chatId int64) (string, error) {
+	filter := bson.D{{"_id", chatId}}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var result struct {
@@ -41,30 +42,30 @@ func extract_city(chat_id int64) (string, error) {
 	err = cities.FindOne(ctx, filter).Decode(&result)
 	if err == mongo.ErrNoDocuments {
 		// Do something when no record was found
-		bot.Send(tgbotapi.NewMessage(chat_id, "Добавьте город"))
-		return "", errors.New("Not found id in db")
+		bot.Send(tgbotapi.NewMessage(chatId, "Добавьте город"))
+		return "", errors.New("not found id in db")
 	}
 	return result.Value, nil
 }
 
-func extract_timer(chat_id int64) (int, int, error) {
+func extractTimer(chatId int64) (int, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var result struct {
 		Value string
 	}
-	filter := bson.D{{"_id", chat_id}}
+	filter := bson.D{{"_id", chatId}}
 	err = timers.FindOne(ctx, filter).Decode(&result)
 	if err == mongo.ErrNoDocuments {
-		return 0, 0, errors.New("Not found id in db")
+		return 0, 0, errors.New("not found id in db")
 	}
 	hour, _ := strconv.Atoi(strings.Split(result.Value, ":")[0])
 	min, _ := strconv.Atoi(strings.Split(result.Value, ":")[1])
 	return hour, min, nil
 }
 
-func register_notification(chat_id int64) bool {
-	hour, min, err := extract_timer(chat_id)
+func registerNotification(chatId int64) bool {
+	hour, min, err := extractTimer(chatId)
 	if err != nil {
 		return false
 	}
@@ -73,13 +74,13 @@ func register_notification(chat_id int64) bool {
 	task, _ := taskScheduler.Schedule(
 		func(ctx context.Context) {
 			for true {
-				city, err := extract_city(chat_id)
+				city, err := extractCity(chatId)
 				if err != nil {
 					continue
 				}
 				bot.Send(
 					tgbotapi.NewMessage(
-						chat_id,
+						chatId,
 						"Погода в городе "+city+":\n"+weather(city),
 					),
 				)
@@ -88,7 +89,7 @@ func register_notification(chat_id int64) bool {
 		},
 		chrono.WithTime(time.Date(now.Year(), now.Month(), now.Day(), hour, min, 0, 0, now.Location())),
 	)
-	times[chat_id] = task
+	times[chatId] = task
 	return true
 }
 
@@ -176,7 +177,7 @@ func processQuery(update *tgbotapi.Update) {
 						"Уведомления будут приходить в: "+update.Message.Text,
 					),
 				)
-				register_notification(update.Message.Chat.ID)
+				registerNotification(update.Message.Chat.ID)
 			} else {
 				panic(err)
 			}
@@ -184,6 +185,7 @@ func processQuery(update *tgbotapi.Update) {
 	}
 }
 
+// todo: init tasks when bot is starting
 func main() {
 	if err != nil {
 		return
