@@ -8,7 +8,7 @@ import (
 )
 
 func weather(city string) string {
-	w, err := owm.NewCurrent("K", "RU", os.Getenv("API_WEATHER")) // 4dc0a1599c0c36727c2a66b5692ad590
+	w, err := owm.NewCurrent("K", "RU", os.Getenv("API_WEATHER"))
 	if err != nil {
 		log.Fatalln(err)
 	}
