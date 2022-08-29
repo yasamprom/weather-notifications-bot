@@ -1,1 +1,1 @@
-### Bot for notofications about weather
+### Bot for notifications about weather
