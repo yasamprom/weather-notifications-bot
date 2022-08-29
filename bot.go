@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/procyon-projects/chrono"
 	"go.mongodb.org/mongo-driver/bson"
@@ -101,22 +102,16 @@ func processQuery(update *tgbotapi.Update) {
 		msg.ReplyMarkup = kb
 		bot.Send(msg)
 	case GET_WEATHER:
-		filter := bson.D{{"_id", update.Message.Chat.ID}}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		var result struct {
-			Value string
-		}
-		err = cities.FindOne(ctx, filter).Decode(&result)
+		city, err := extractCity(update.Message.Chat.ID)
 		if err == mongo.ErrNoDocuments {
 			// Do something when no record was found
 			bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Добавьте город"))
 			return
 		}
-		txt := weather(result.Value)
+		txt := weather(city)
 		msg := tgbotapi.NewMessage(
 			update.Message.Chat.ID,
-			"Погода в городе "+result.Value+":\n"+txt)
+			"Погода в городе "+city+":\n"+txt)
 		bot.Send(msg)
 		return
 	case ADD_CITY:
@@ -185,12 +180,27 @@ func processQuery(update *tgbotapi.Update) {
 	}
 }
 
-// todo: init tasks when bot is starting
+func initial() {
+	cursor, err := timers.Find(context.TODO(), bson.D{})
+	if err != nil {
+		panic(err)
+	}
+	var results []bson.D
+	if err = cursor.All(context.TODO(), &results); err != nil {
+		panic(err)
+	}
+	for _, result := range results {
+		str := fmt.Sprintf("%v", result.Map()["_id"])
+		n, _ := strconv.ParseInt(str, 10, 64)
+		registerNotification(n)
+	}
+}
+
 func main() {
 	if err != nil {
 		return
 	}
-
+	initial()
 	bot.Debug = true
 	updateConfig := tgbotapi.NewUpdate(0)
 	updateConfig.Timeout = 30
