@@ -42,9 +42,8 @@ func extractCity(chatId int64) (string, error) {
 	}
 	err = cities.FindOne(ctx, filter).Decode(&result)
 	if err == mongo.ErrNoDocuments {
-		// Do something when no record was found
 		bot.Send(tgbotapi.NewMessage(chatId, "Добавьте город"))
-		return "", errors.New("not found id in db")
+		return "", errors.New("id not found in db")
 	}
 	return result.Value, nil
 }
@@ -90,6 +89,9 @@ func registerNotification(chatId int64) bool {
 		},
 		chrono.WithTime(time.Date(now.Year(), now.Month(), now.Day(), hour, min, 0, 0, now.Location())),
 	)
+	if val, ok := times[chatId]; ok {
+		val.Cancel()
+	}
 	times[chatId] = task
 	return true
 }
@@ -104,7 +106,6 @@ func processQuery(update *tgbotapi.Update) {
 	case GET_WEATHER:
 		city, err := extractCity(update.Message.Chat.ID)
 		if err == mongo.ErrNoDocuments {
-			// Do something when no record was found
 			bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Добавьте город"))
 			return
 		}
@@ -169,7 +170,7 @@ func processQuery(update *tgbotapi.Update) {
 				bot.Send(
 					tgbotapi.NewMessage(
 						update.Message.Chat.ID,
-						"Уведомления будут приходить в: "+update.Message.Text,
+						"Теперь уведомления будут приходить в: "+update.Message.Text+" по МСК",
 					),
 				)
 				registerNotification(update.Message.Chat.ID)

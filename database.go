@@ -16,6 +16,6 @@ func create_db() (*mongo.Collection, *mongo.Collection, *mongo.Collection) {
 	}
 	cities := client.Database("Data").Collection("Cities")
 	timers := client.Database("Data").Collection("Timers")
-	users := client.Database("Data").Collection("Cities")
+	users := client.Database("Data").Collection("Users")
 	return cities, timers, users
 }
