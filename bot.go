@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -29,10 +30,16 @@ type TimerChooseState struct {
 var (
 	bot, err              = tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_TOKEN"))
 	cities, timers, users = create_db()
+	mu                    sync.Mutex
 	state                 = make(map[int64]State)
 	times                 = make(map[int64]chrono.ScheduledTask)
 )
 
+func setState(id int64, newState State) {
+	mu.Lock()
+	state[id] = newState
+	mu.Unlock()
+}
 func extractCity(chatId int64) (string, error) {
 	filter := bson.D{{"_id", chatId}}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -42,7 +49,6 @@ func extractCity(chatId int64) (string, error) {
 	}
 	err = cities.FindOne(ctx, filter).Decode(&result)
 	if err == mongo.ErrNoDocuments {
-		bot.Send(tgbotapi.NewMessage(chatId, "Добавьте город"))
 		return "", errors.New("id not found in db")
 	}
 	return result.Value, nil
@@ -76,7 +82,7 @@ func registerNotification(chatId int64) bool {
 			for true {
 				city, err := extractCity(chatId)
 				if err != nil {
-					continue
+					return
 				}
 				bot.Send(
 					tgbotapi.NewMessage(
@@ -116,11 +122,11 @@ func processQuery(update *tgbotapi.Update) {
 		bot.Send(msg)
 		return
 	case ADD_CITY:
-		state[update.Message.Chat.ID] = CityChooseState{}
+		setState(update.Message.Chat.ID, CityChooseState{})
 		bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Напиши город"))
 		return
 	case SET_TIMER:
-		state[update.Message.Chat.ID] = TimerChooseState{}
+		setState(update.Message.Chat.ID, TimerChooseState{})
 		bot.Send(tgbotapi.NewMessage(
 			update.Message.Chat.ID,
 			"Пришли время, в которое ты хочешь получать уведомление в формате HH:MM"),
@@ -211,6 +217,7 @@ func main() {
 		if update.Message == nil {
 			continue
 		}
+		fmt.Println(update.Message.Text)
 		go processQuery(&update)
 	}
 }
